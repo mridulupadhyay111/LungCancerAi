@@ -19,6 +19,7 @@ outputs/
 checkpoints/
 
 data/raw/
+README.md
 
 data/processed/
 
@@ -26,6 +27,8 @@ data/processed/
 
 .idea/
 processed_dataset.zip
+project_files.zip
+Loan_defaulter/
 data/
 outputs/
 checkpoints/
