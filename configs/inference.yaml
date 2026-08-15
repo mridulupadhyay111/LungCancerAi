@@ -1,0 +1,6 @@
+# Inference configuration (configs/inference.yaml)
+inference:
+
+  checkpoint:
+
+  output:

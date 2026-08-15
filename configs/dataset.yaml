@@ -1,0 +1,24 @@
+# Dataset configuration (configs/dataset.yaml)
+dataset:
+
+  name: NSCLC-Radiomics
+
+  raw_path: data/raw/
+
+  processed_path: data/processed/
+
+  image_size:
+
+    - 128
+
+    - 128
+
+    - 128
+
+  spacing:
+
+    - 1.0
+
+    - 1.0
+
+    - 1.0
