@@ -75,7 +75,7 @@ class MultiModalModel(nn.Module):
 
     def __init__(
         self,
-        clinical_input_dim: int = 20,
+        clinical_input_dim: int = 5,
         image_embedding_dim: int = 512,
         clinical_embedding_dim: int = 256,
         fusion_dim: int = 512,
