@@ -71,11 +71,11 @@ class PredictionHead(nn.Module):
                 hidden_dim,
             ),
 
-            nn.BatchNorm1d(
+            nn.LayerNorm(
                 hidden_dim,
             ),
 
-            nn.ReLU(inplace=True),
+            nn.GELU(),
 
             nn.Dropout(
                 dropout,
@@ -86,11 +86,11 @@ class PredictionHead(nn.Module):
                 hidden_dim,
             ),
 
-            nn.BatchNorm1d(
+            nn.LayerNorm(
                 hidden_dim,
             ),
 
-            nn.ReLU(inplace=True),
+            nn.GELU(),
 
             nn.Dropout(
                 dropout,

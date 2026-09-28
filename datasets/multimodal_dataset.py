@@ -46,6 +46,9 @@ class MultiModalDataset(Dataset):
         clinical_dir=Config.PROCESSED_DIR / "clinical",
         transform=None,
         use_mask=True,
+        csv_file=None,
+        training=False,
+        **kwargs,
     ):
         self.processed_dir = Path(processed_dir)
         self.transform = transform
@@ -53,9 +56,17 @@ class MultiModalDataset(Dataset):
         self.image_transform = Resize3D((128, 128, 128))
         self.mask_transform = MaskResize3D((128, 128, 128))
 
-        self.feature_df = pd.read_csv(clinical_dir / "clinical_features.csv")
-        self.label_df = pd.read_csv(clinical_dir / "labels.csv")
-        self.data = self.feature_df.merge(self.label_df, on="PatientID")
+        if csv_file is not None and Path(csv_file).exists() and Path(csv_file).is_file():
+            try:
+                self.data = pd.read_csv(csv_file)
+            except Exception:
+                self.feature_df = pd.read_csv(Path(clinical_dir) / "clinical_features.csv")
+                self.label_df = pd.read_csv(Path(clinical_dir) / "labels.csv")
+                self.data = self.feature_df.merge(self.label_df, on="PatientID")
+        else:
+            self.feature_df = pd.read_csv(Path(clinical_dir) / "clinical_features.csv")
+            self.label_df = pd.read_csv(Path(clinical_dir) / "labels.csv")
+            self.data = self.feature_df.merge(self.label_df, on="PatientID")
 
         # =====================================================
         # Clinical Features

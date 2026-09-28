@@ -217,11 +217,11 @@ trainer_config = TrainerConfig(
 
     mixed_precision=False,      # CPU training
 
-    gradient_clip=5.0,
+    gradient_clip=1.0,
 
-    accumulation_steps=1,
+    accumulation_steps=8,
 
-    early_stopping_patience=15,
+    early_stopping_patience=25,
 
     save_best_only=True,
 

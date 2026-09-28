@@ -73,73 +73,37 @@ model.to(DEVICE)
 model.eval()
 
 print("Best model loaded.")
-# ============================================================
-# Predict Function
-# ============================================================
+import argparse
+from pathlib import Path
+import torch
 
-@torch.no_grad()
-def predict_patient(index):
+from deployment.predictor import LungCancerPredictor
 
-    sample = dataset[index]
+def main():
+    parser = argparse.ArgumentParser(description="LungCancerAI Predict Script")
+    parser.add_argument("--index", type=int, default=0, help="Dataset index to predict")
+    parser.add_argument("--patient_id", type=str, default=None, help="Patient ID to predict")
+    args = parser.parse_args()
 
-    image = sample["image"].unsqueeze(0).to(DEVICE)
-
-    clinical = sample["clinical"].unsqueeze(0).to(DEVICE)
-
-    outputs = model.predict(
-
-        image,
-
-        clinical,
-
-    )
-
-    histology = torch.argmax(
-
-        outputs["histology_logits"],
-
-        dim=1,
-
-    ).item()
-
-    stage = torch.argmax(
-
-        outputs["stage_logits"],
-
-        dim=1,
-
-    ).item()
-
-    survival = outputs[
-        "survival_prediction"
-    ].item()
-
+    predictor = LungCancerPredictor()
+    
+    target = args.patient_id if args.patient_id else args.index
+    print(f"Running inference for target: {target}")
+    
+    res = predictor.predict(target)
+    
     print()
-
     print("=" * 70)
-
-    print("Prediction")
-
+    print("Prediction Result")
     print("=" * 70)
-
-    print("Patient :", sample["patient_id"])
-
-    print("Histology :", histology)
-
-    print("Stage :", stage)
-
-    print("Survival Score :", round(survival, 4))
-
+    print("Patient ID     :", res["patient_id"])
+    print("Histology      :", res["histology_label"])
+    print("Histology Probs:", [round(float(p), 4) for p in res["histology_probs"]])
+    print("Stage          :", res["stage_label"])
+    print("Stage Probs    :", [round(float(p), 4) for p in res["stage_probs"]])
+    print("Survival Days  :", res["survival_days"])
+    print("Survival Years :", res["survival_years"])
     print("=" * 70)
-
-    return outputs
-
-
-# ============================================================
-# Main
-# ============================================================
 
 if __name__ == "__main__":
-
-    predict_patient(15)
-    
+    main()

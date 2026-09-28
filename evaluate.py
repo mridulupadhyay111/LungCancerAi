@@ -52,9 +52,12 @@ from sklearn.metrics import (
 
 )
 
-from dataset.multimodal_dataset import MultiModalDataset
+from datasets.multimodal_dataset import MultiModalDataset
 
-from models.multimodal_model import MultiModalModel
+from models.multimodal_model import (
+    MultiModalModel,
+    build_multimodal_model,
+)
 # =====================================================
 # Arguments
 # =====================================================
@@ -77,7 +80,7 @@ def parse_arguments():
 
         "--csv",
 
-        required=True,
+        default=None,
 
         type=str,
 
@@ -151,7 +154,7 @@ def build_loader(args):
 
         shuffle=False,
 
-        num_workers=4,
+        num_workers=0,
 
         pin_memory=True,
 
@@ -190,8 +193,6 @@ def load_model(
 
 ):
 
-    model = MultiModalModel()
-
     state = torch.load(
 
         checkpoint,
@@ -200,17 +201,22 @@ def load_model(
 
     )
 
-    if "model_state_dict" in state:
+    state_dict = state["model_state_dict"] if "model_state_dict" in state else state
 
-        model.load_state_dict(
+    kwargs = {}
+    if "clinical_encoder.feature_extractor.0.weight" in state_dict:
+        kwargs["clinical_input_dim"] = state_dict["clinical_encoder.feature_extractor.0.weight"].shape[1]
 
-            state["model_state_dict"]
+    for key, arg_name in [
+        ("prediction_heads.stage_head.network.8.weight", "num_stage_classes"),
+        ("prediction_heads.histology_head.network.8.weight", "num_histology_classes"),
+    ]:
+        if key in state_dict:
+            kwargs[arg_name] = state_dict[key].shape[0]
 
-        )
+    model = build_multimodal_model(**kwargs)
 
-    else:
-
-        model.load_state_dict(state)
+    model.load_state_dict(state_dict)
 
     model.to(device)
 
@@ -1226,7 +1232,8 @@ def run_evaluation(args):
     print("Evaluation Started")
 
     print("=" * 70)
-
+    
+    print("DEBUG: Evaluation script reached successfully")
     output_dir = create_output_directory(
 
         args.output,
