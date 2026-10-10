@@ -70,91 +70,101 @@ print("=" * 70)
 print("Device :", device)
 print("=" * 70)
 # ==========================================================
-# Dataset
+# Datasets (Separate Train & Validation for Augmentations)
 # ==========================================================
 
-dataset = MultiModalDataset()
+full_train_dataset = MultiModalDataset(training=True)
+full_val_dataset = MultiModalDataset(training=False)
+
+dataset_size = len(full_train_dataset)
+train_size = int(0.8 * dataset_size)
+
+np.random.seed(42)
+indices = np.random.permutation(dataset_size)
+
+train_indices = indices[:train_size]
+val_indices = indices[train_size:]
+
+train_dataset = torch.utils.data.Subset(full_train_dataset, train_indices)
+val_dataset = torch.utils.data.Subset(full_val_dataset, val_indices)
 
 print()
+print("Dataset Size :", dataset_size)
+print("Train        :", len(train_dataset))
+print("Validation   :", len(val_dataset))
 
-print("Dataset Size :", len(dataset))
 # ==========================================================
-# Train Validation Split
+# Class Weights & Balanced Sampling
 # ==========================================================
 
-train_size = int(
+train_df = full_train_dataset.data.iloc[train_indices]
+train_histology = train_df["histology"].values
+train_stage = train_df["stage"].values
 
-    0.8 * len(dataset)
+num_histology_classes = len(np.unique(full_train_dataset.data["histology"]))
+num_stage_classes = len(np.unique(full_train_dataset.data["stage"]))
 
+histology_counts = np.bincount(train_histology, minlength=max(5, num_histology_classes))
+stage_counts = np.bincount(train_stage, minlength=max(4, num_stage_classes))
+
+histology_weights = torch.tensor(
+    [len(train_histology) / (float(len(histology_counts)) * max(1, c)) for c in histology_counts],
+    dtype=torch.float32,
+).to(device)
+
+stage_weights = torch.tensor(
+    [len(train_stage) / (float(len(stage_counts)) * max(1, c)) for c in stage_counts],
+    dtype=torch.float32,
+).to(device)
+
+sample_weights = [
+    float(histology_weights[h].cpu() * stage_weights[s].cpu())
+    for h, s in zip(train_histology, train_stage)
+]
+
+sampler = torch.utils.data.WeightedRandomSampler(
+    weights=sample_weights,
+    num_samples=len(sample_weights),
+    replacement=True,
 )
 
-val_size = len(dataset) - train_size
-
-train_dataset, val_dataset = random_split(
-
-    dataset,
-
-    [train_size, val_size],
-
-    generator=torch.Generator().manual_seed(42),
-
-)
-
-print()
-
-print("Train :", len(train_dataset))
-
-print("Validation :", len(val_dataset))
 # ==========================================================
 # DataLoaders
 # ==========================================================
 
 train_loader = DataLoader(
-
     train_dataset,
-
-    batch_size=2,
-
-    shuffle=True,
-
+    batch_size=4 if device.type == "cuda" else 2,
+    sampler=sampler,
     num_workers=0,
-
-    pin_memory=True,
-
+    pin_memory=True if device.type == "cuda" else False,
 )
 
 val_loader = DataLoader(
-
     val_dataset,
-
-    batch_size=2,
-
+    batch_size=4 if device.type == "cuda" else 2,
     shuffle=False,
-
     num_workers=0,
-
-    pin_memory=True,
-
+    pin_memory=True if device.type == "cuda" else False,
 )
+
 # ==========================================================
 # Build Model
 # ==========================================================
 
 model = build_multimodal_model(
-
-    clinical_input_dim=dataset.num_features,
-
+    clinical_input_dim=full_train_dataset.num_features,
+    num_histology_classes=len(histology_counts),
+    num_stage_classes=len(stage_counts),
 )
 
 model = model.to(device)
 
 print()
-
+print("=" * 70)
+print("Multimodal Model Built Successfully")
 print("=" * 70)
 
-print("Model Built Successfully")
-
-print("=" * 70)
 # ==========================================================
 # Optimizer
 # ==========================================================
@@ -170,6 +180,7 @@ print()
 print("=" * 70)
 print("Optimizer Built Successfully")
 print("=" * 70)
+
 # ==========================================================
 # Scheduler
 # ==========================================================
@@ -194,10 +205,13 @@ print("Scheduler Built Successfully")
 print("=" * 70)
 
 # ==========================================================
-# Loss
+# Loss Function with Balanced Class Weights
 # ==========================================================
 
-criterion = MultiTaskLoss()
+criterion = MultiTaskLoss(
+    histology_class_weights=histology_weights,
+    stage_class_weights=stage_weights,
+)
 
 print()
 print("=" * 70)

@@ -111,6 +111,37 @@ class MultiModalDataset(Dataset):
         print("Clinical Features :", self.num_features)
         print("=" * 70)
 
+        self.training = training
+        from datasets.transforms import RandomAugment3D
+        self.augmentor = RandomAugment3D(training=self.training)
+
+    def crop_roi(self, image, mask, margin_ratio=0.20):
+        """
+        Crops a tight 3D bounding box around the non-zero region of the mask with margin.
+        """
+        if mask is None or not (mask > 0.5).any():
+            return image, mask
+
+        nonzero = np.where(mask > 0.5)
+        z_min, z_max = int(nonzero[0].min()), int(nonzero[0].max() + 1)
+        y_min, y_max = int(nonzero[1].min()), int(nonzero[1].max() + 1)
+        x_min, x_max = int(nonzero[2].min()), int(nonzero[2].max() + 1)
+
+        z_margin = max(4, int(margin_ratio * (z_max - z_min)))
+        y_margin = max(8, int(margin_ratio * (y_max - y_min)))
+        x_margin = max(8, int(margin_ratio * (x_max - x_min)))
+
+        z_min = max(0, z_min - z_margin)
+        z_max = min(image.shape[0], z_max + z_margin)
+        y_min = max(0, y_min - y_margin)
+        y_max = min(image.shape[1], y_max + y_margin)
+        x_min = max(0, x_min - x_margin)
+        x_max = min(image.shape[2], x_max + x_margin)
+
+        cropped_image = image[z_min:z_max, y_min:y_max, x_min:x_max]
+        cropped_mask = mask[z_min:z_max, y_min:y_max, x_min:x_max]
+        return cropped_image, cropped_mask
+
     def __len__(self):
         return len(self.data)
 
@@ -127,33 +158,25 @@ class MultiModalDataset(Dataset):
         pid = row["PatientID"]
 
         # -----------------------------------------
-        # Image
+        # Image & Mask Loading
         # -----------------------------------------
         image = self.load_image(pid)
 
-        # -----------------------------------------
-        # Mask
-        # -----------------------------------------
         mask = None
         if self.use_mask:
             mask = self.load_mask(pid)
-            image = image * mask
+            image, mask = self.crop_roi(image, mask, margin_ratio=0.20)
+            if mask is not None:
+                image = image * mask
 
-       # --------------------------------------------------
-# Resize Image
-# --------------------------------------------------
-
+        # --------------------------------------------------
+        # Resize Image & Mask
+        # --------------------------------------------------
         image = self.image_transform(image)
-
-# --------------------------------------------------
-# Resize Mask
-# --------------------------------------------------
-
         if mask is not None:
+            mask = self.mask_transform(mask)
 
-         mask = self.mask_transform(mask)
         # Tensor Conversion
-        # -----------------------------------------
         if isinstance(image, np.ndarray):
             image = torch.from_numpy(image)
         elif not torch.is_tensor(image):
@@ -163,6 +186,20 @@ class MultiModalDataset(Dataset):
 
         if image.ndim == 3:
             image = image.unsqueeze(0)
+
+        if mask is not None:
+            if isinstance(mask, np.ndarray):
+                mask = torch.from_numpy(mask)
+            elif not torch.is_tensor(mask):
+                mask = torch.as_tensor(mask, dtype=torch.float32)
+            else:
+                mask = mask.float()
+            if mask.ndim == 3:
+                mask = mask.unsqueeze(0)
+
+        # Apply 3D Augmentation during training
+        if self.training:
+            image, mask = self.augmentor(image, mask)
 
         # -----------------------------------------
         # Clinical Features
@@ -190,8 +227,6 @@ class MultiModalDataset(Dataset):
         }
 
         if self.use_mask and mask is not None:
-            if isinstance(mask, np.ndarray):
-                mask = torch.from_numpy(mask)
             sample["mask"] = mask.float()
 
         return sample
