@@ -828,37 +828,50 @@ class Trainer:
     # ============================================================
 
     @torch.no_grad()
-
     def evaluate(
-
         self,
-
         data_loader,
-
     ):
+        self.model.eval()
+        histology_preds, histology_targets = [], []
+        stage_preds, stage_targets = [], []
 
-        metrics = self.validate(
+        for batch in data_loader:
+            image = batch["image"].to(self.device)
+            clinical = batch["clinical"].to(self.device)
+            outputs = self.model(image, clinical)
 
-            data_loader,
+            hist_p = torch.argmax(outputs["histology_logits"], dim=1).cpu().numpy()
+            stg_p = torch.argmax(outputs["stage_logits"], dim=1).cpu().numpy()
 
-        )
+            histology_preds.extend(hist_p)
+            stage_preds.extend(stg_p)
+            histology_targets.extend(batch["histology"].numpy())
+            stage_targets.extend(batch["stage"].numpy())
+
+        from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+
+        hist_acc = accuracy_score(histology_targets, histology_preds)
+        hist_f1 = f1_score(histology_targets, histology_preds, average="weighted", zero_division=0)
+
+        stage_acc = accuracy_score(stage_targets, stage_preds)
+        stage_f1 = f1_score(stage_targets, stage_preds, average="weighted", zero_division=0)
+
+        metrics = {
+            "histology_accuracy": hist_acc,
+            "histology_f1": hist_f1,
+            "stage_accuracy": stage_acc,
+            "stage_f1": stage_f1,
+        }
 
         print()
-
         print("=" * 70)
-
-        print("Evaluation")
-
+        print("Evaluation Results")
         print("=" * 70)
-
-        for k, v in metrics.items():
-
-            print(
-
-                f"{k:20s}: {v:.4f}"
-
-            )
-
+        print(f"Histology Accuracy : {hist_acc:.4f} ({hist_acc*100:.2f}%)")
+        print(f"Histology F1 Score : {hist_f1:.4f}")
+        print(f"Stage Accuracy     : {stage_acc:.4f} ({stage_acc*100:.2f}%)")
+        print(f"Stage F1 Score     : {stage_f1:.4f}")
         print("=" * 70)
 
         return metrics

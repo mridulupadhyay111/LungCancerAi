@@ -15,7 +15,7 @@ class Config:
     # PROJECT
     # =====================================================
 
-    PROJECT_ROOT = Path(r"D:\LungCancerAI")
+    PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
     # =====================================================
     # DATA
