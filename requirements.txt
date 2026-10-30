@@ -47,3 +47,9 @@ rich
 loguru
 
 pytest
+
+streamlit
+
+plotly
+
+imbalanced-learn
