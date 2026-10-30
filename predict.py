@@ -12,6 +12,7 @@ Predicts:
 from __future__ import annotations
 
 from pathlib import Path
+import argparse
 
 import torch
 
@@ -34,50 +35,8 @@ print("=" * 60)
 print("Inference Device :", DEVICE)
 print("=" * 60)
 
-# ============================================================
-# Dataset
-# ============================================================
-
-dataset = MultiModalDataset(
-    processed_dir=Config.PROCESSED_DIR,
-    clinical_dir=Config.PROCESSED_DIR / "clinical",
-    transform=Resize3D((128, 128, 128)),
-    use_mask=True,
-)
-
-# ============================================================
-# Model
-# ============================================================
-
-model = build_multimodal_model(
-    clinical_input_dim=5,
-    image_embedding_dim=512,
-    clinical_embedding_dim=256,
-    fusion_dim=512,
-)
-
-checkpoint = Path("outputs") / "best" / "best_model.pth"
-
-checkpoint = torch.load(
-    checkpoint,
-    map_location=DEVICE,
-)
-
-if "model_state_dict" in checkpoint:
-    checkpoint = checkpoint["model_state_dict"]
-
-model.load_state_dict(checkpoint)
-
-model.to(DEVICE)
-
-model.eval()
-
-print("Best model loaded.")
-import argparse
-from pathlib import Path
-import torch
-
 from deployment.predictor import LungCancerPredictor
+
 
 def main():
     parser = argparse.ArgumentParser(description="LungCancerAI Predict Script")

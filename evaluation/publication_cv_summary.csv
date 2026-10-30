@@ -1,0 +1,14 @@
+Metric,Value
+Stage Accuracy (Overall),0.9598930481283422
+Stage Balanced Accuracy (1:1:1),0.8983342545976067
+Stage F1 (Balanced),0.9591989804266019
+Stage ROC-AUC,0.9812992721731364
+Stage I Recall,0.9692307692307692
+Stage II Recall (Minority),0.7368421052631579
+Stage III Recall,0.988929889298893
+Histology Accuracy (Overall),0.7213930348258707
+Histology Balanced Accuracy (1:1),0.6205960264900662
+Histology F1,0.719466576889986
+Histology ROC-AUC,0.6487417218543046
+Histology Adeno Recall,0.42
+Histology Squamous Recall,0.8211920529801324

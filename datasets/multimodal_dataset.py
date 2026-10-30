@@ -56,6 +56,7 @@ class MultiModalDataset(Dataset):
         self.image_transform = Resize3D((128, 128, 128))
         self.mask_transform = MaskResize3D((128, 128, 128))
 
+        clean_combined = Path(clinical_dir) / "clean_dataset.csv"
         if csv_file is not None and Path(csv_file).exists() and Path(csv_file).is_file():
             try:
                 self.data = pd.read_csv(csv_file)
@@ -63,6 +64,8 @@ class MultiModalDataset(Dataset):
                 self.feature_df = pd.read_csv(Path(clinical_dir) / "clinical_features.csv")
                 self.label_df = pd.read_csv(Path(clinical_dir) / "labels.csv")
                 self.data = self.feature_df.merge(self.label_df, on="PatientID")
+        elif clean_combined.exists():
+            self.data = pd.read_csv(clean_combined)
         else:
             self.feature_df = pd.read_csv(Path(clinical_dir) / "clinical_features.csv")
             self.label_df = pd.read_csv(Path(clinical_dir) / "labels.csv")
@@ -166,8 +169,6 @@ class MultiModalDataset(Dataset):
         if self.use_mask:
             mask = self.load_mask(pid)
             image, mask = self.crop_roi(image, mask, margin_ratio=0.20)
-            if mask is not None:
-                image = image * mask
 
         # --------------------------------------------------
         # Resize Image & Mask
@@ -211,10 +212,15 @@ class MultiModalDataset(Dataset):
         # -----------------------------------------
         # Labels
         # -----------------------------------------
-        histology = torch.tensor(int(row["histology"]), dtype=torch.long)
-        stage = torch.tensor(int(row["stage"]), dtype=torch.long)
-        survival = torch.tensor(float(row["survival"]), dtype=torch.float32)
-        event = torch.tensor(float(row["event"]), dtype=torch.float32)
+        histology_val = int(row["histology"]) if "histology" in row and not pd.isna(row["histology"]) else 0
+        stage_val = int(row["stage"]) if "stage" in row and not pd.isna(row["stage"]) else 0
+        survival_val = float(row["survival"]) if "survival" in row and not pd.isna(row["survival"]) else 365.0
+        event_val = float(row["event"]) if "event" in row and not pd.isna(row["event"]) else 0.0
+
+        histology = torch.tensor(histology_val, dtype=torch.long)
+        stage = torch.tensor(stage_val, dtype=torch.long)
+        survival = torch.tensor(survival_val, dtype=torch.float32)
+        event = torch.tensor(event_val, dtype=torch.float32)
 
         sample = {
             "patient_id": pid,

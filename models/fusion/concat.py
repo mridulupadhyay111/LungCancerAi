@@ -1,1 +1,0 @@
-"""Concat fusion placeholder"""
