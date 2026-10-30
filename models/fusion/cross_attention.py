@@ -1,1 +1,0 @@
-"""Cross-attention fusion placeholder"""

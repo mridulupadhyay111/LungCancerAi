@@ -19,12 +19,12 @@ from losses.focal_loss import FocalLoss
 
 @dataclass
 class LossConfig:
-    histology_weight: float = 1.0
+    histology_weight: float = 2.0
     stage_weight: float = 1.0
     survival_weight: float = 0.0  # Zero out survival loss to eliminate gradient noise
-    label_smoothing: float = 0.1
+    label_smoothing: float = 0.05
     use_focal_loss: bool = True
-    gamma: float = 2.0
+    gamma: float = 1.0
 
 
 class MultiTaskLoss(nn.Module):

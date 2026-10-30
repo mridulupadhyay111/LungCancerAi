@@ -117,17 +117,6 @@ stage_weights = torch.tensor(
     dtype=torch.float32,
 ).to(device)
 
-sample_weights = [
-    float(histology_weights[h].cpu() * stage_weights[s].cpu())
-    for h, s in zip(train_histology, train_stage)
-]
-
-sampler = torch.utils.data.WeightedRandomSampler(
-    weights=sample_weights,
-    num_samples=len(sample_weights),
-    replacement=True,
-)
-
 # ==========================================================
 # DataLoaders
 # ==========================================================
@@ -135,7 +124,7 @@ sampler = torch.utils.data.WeightedRandomSampler(
 train_loader = DataLoader(
     train_dataset,
     batch_size=4 if device.type == "cuda" else 2,
-    sampler=sampler,
+    shuffle=True,
     num_workers=0,
     pin_memory=True if device.type == "cuda" else False,
 )

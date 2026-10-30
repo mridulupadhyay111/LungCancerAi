@@ -38,7 +38,7 @@ class LungCancerPredictor:
         
         # Load Dataset
         self.dataset = MultiModalDataset()
-        self.patient_ids = [self.dataset[i]["patient_id"] for i in range(len(self.dataset))]
+        self.patient_ids = list(self.dataset.patient_ids)
         self.id_to_index = {pid: i for i, pid in enumerate(self.patient_ids)}
         
         # Load Model
@@ -167,7 +167,14 @@ class LungCancerPredictor:
 
     def _resize_volume_3d(self, vol: np.ndarray, target_shape=(128, 128, 128)) -> np.ndarray:
         """Resizes a 3D numpy volume to target_shape (D, H, W) using PyTorch interpolation and applies Z-score standardization matching training data."""
-        v_mean, v_std = vol.mean(), vol.std()
+        # Fast downsampling if incoming volume is large (e.g. 512x512) to avoid memory blowup and lag
+        step_d = max(1, vol.shape[0] // target_shape[0])
+        step_h = max(1, vol.shape[1] // target_shape[1])
+        step_w = max(1, vol.shape[2] // target_shape[2])
+        if step_d > 1 or step_h > 1 or step_w > 1:
+            vol = vol[::step_d, ::step_h, ::step_w]
+
+        v_mean, v_std = float(vol.mean()), float(vol.std())
         if v_std > 1e-6:
             vol = (vol - v_mean) / v_std
         else:
@@ -302,10 +309,8 @@ class LungCancerPredictor:
     # Explainability: Grad-CAM & SHAP
     # =========================================================================
 
-    def generate_gradcam_heatmap(self, patient_or_image: Union[str, int, np.ndarray], clinical_np: Optional[np.ndarray] = None, task="histology", plane="axial", slice_pct=0.5) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Generates 2D Grad-CAM heatmap visualization for the CT scan volume.
-        """
+    def compute_gradcam_3d(self, patient_or_image: Union[str, int, np.ndarray], clinical_np: Optional[np.ndarray] = None, task="histology") -> np.ndarray:
+        """Computes 3D Grad-CAM attention volume once. Returns 3D numpy array of shape (D, H, W)."""
         if isinstance(patient_or_image, (str, int)):
             sample = self.get_patient_data(patient_or_image)
             image_tensor = sample["image"].unsqueeze(0).to(self.device)
@@ -335,6 +340,11 @@ class LungCancerPredictor:
         except Exception:
             cam_3d = self._generate_fallback_cam_3d(vol_3d)
 
+        return cam_3d
+
+    def get_gradcam_slice(self, vol_3d: np.ndarray, cam_3d: np.ndarray, plane="axial", slice_pct=0.5) -> Tuple[np.ndarray, np.ndarray]:
+        """Extracts 2D CT slice and 2D heatmap slice instantly from precomputed 3D volumes (takes ~0.001s)."""
+        d, h, w = vol_3d.shape
         if plane == "axial":
             idx = int(np.clip(slice_pct * (d - 1), 0, d - 1))
             ct_slice = vol_3d[idx, :, :]
@@ -350,8 +360,13 @@ class LungCancerPredictor:
 
         norm_slice = (ct_slice - ct_slice.min()) / (ct_slice.max() - ct_slice.min() + 1e-8)
         norm_heatmap = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min() + 1e-8)
-
         return norm_slice, norm_heatmap
+
+    def generate_gradcam_heatmap(self, patient_or_image: Union[str, int, np.ndarray], clinical_np: Optional[np.ndarray] = None, task="histology", plane="axial", slice_pct=0.5) -> Tuple[np.ndarray, np.ndarray]:
+        """Generates 2D Grad-CAM heatmap visualization for the CT scan volume."""
+        cam_3d = self.compute_gradcam_3d(patient_or_image, clinical_np=clinical_np, task=task)
+        vol_3d = patient_or_image if isinstance(patient_or_image, np.ndarray) else np.squeeze(self.get_patient_data(patient_or_image)["image"].numpy())
+        return self.get_gradcam_slice(vol_3d, cam_3d, plane=plane, slice_pct=slice_pct)
 
     def _generate_fallback_cam_3d(self, vol_3d: np.ndarray) -> np.ndarray:
         """Generates localized high-intensity focus heatmap when autograd hooks are unavailable."""
